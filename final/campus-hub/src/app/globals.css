@@ -1228,6 +1228,12 @@ body {
   color: var(--text-secondary);
 }
 
+.pin-upiid-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
 .pin-dots {
   display: flex;
   gap: 16px;
@@ -1908,6 +1914,7 @@ body {
 /* willChange lives in CSS so the inline style only carries transform */
 .reel-strip {
   will-change: transform;
+  transform: translateY(calc(-1 * var(--reel-offset, 0px)));
 }
 
 /* Reels container — base */

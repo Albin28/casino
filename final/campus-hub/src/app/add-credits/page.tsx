@@ -11,43 +11,28 @@ const AMOUNT_PRESETS = [
     { label: '₹1000', value: 1000, chips: 1000 },
 ];
 
-type PayMethod = 'upi' | 'card' | 'netbanking';
-type Step = 'amount' | 'method' | 'details' | 'pin' | 'success';
-const ORDER: Step[] = ['amount', 'method', 'details', 'pin'];
+// Accepted demo UPI IDs (any of these will work)
+const DEMO_UPI_IDS = ['demo@upi', 'casino@ybl', 'lucky@paytm', '9999999999@upi'];
+// Demo PIN
+const DEMO_PIN = '1234';
+
+type Step = 'amount' | 'details' | 'pin' | 'success';
+const ORDER: Step[] = ['amount', 'details', 'pin'];
 
 export default function AddCreditsPage() {
     const router = useRouter();
     const [step, setStep] = useState<Step>('amount');
     const [selectedAmount, setSelectedAmount] = useState<number | null>(null);
     const [customAmount, setCustomAmount] = useState('');
-    const [payMethod, setPayMethod] = useState<PayMethod>('upi');
     const [upiId, setUpiId] = useState('');
-    const [cardNum, setCardNum] = useState('');
-    const [cardExpiry, setCardExpiry] = useState('');
-    const [cardCvv, setCardCvv] = useState('');
-    const [netUser, setNetUser] = useState('');
-    const [netPass, setNetPass] = useState('');
     const [pin, setPin] = useState('');
     const [processing, setProcessing] = useState(false);
     const [error, setError] = useState('');
 
     const finalAmount = selectedAmount ?? (parseInt(customAmount) || 0);
 
-    const formatCard = (v: string) =>
-        v.replace(/\D/g, '').slice(0, 16).replace(/(.{4})/g, '$1 ').trim();
-
-    const formatExpiry = (v: string) => {
-        const digits = v.replace(/\D/g, '').slice(0, 4);
-        return digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
-    };
-
     const canProceedAmount = finalAmount >= 10;
-
-    const canProceedDetails = () => {
-        if (payMethod === 'upi') return upiId.includes('@') && upiId.length >= 5;
-        if (payMethod === 'card') return cardNum.replace(/\s/g, '').length === 16 && cardExpiry.length === 5 && cardCvv.length === 3;
-        return netUser.length >= 3 && netPass.length >= 4;
-    };
+    const canProceedDetails = upiId.includes('@') && upiId.length >= 5;
 
     const handlePinKey = (key: string) => {
         setError('');
@@ -62,6 +47,11 @@ export default function AddCreditsPage() {
 
     const submitPayment = (enteredPin: string) => {
         if (enteredPin.length !== 4) { setError('Enter 4-digit PIN'); return; }
+        if (enteredPin !== DEMO_PIN) {
+            setError('Incorrect PIN. Try: ' + DEMO_PIN);
+            setPin('');
+            return;
+        }
         setProcessing(true);
         setTimeout(() => {
             const raw = localStorage.getItem(STORAGE_KEY);
@@ -111,7 +101,7 @@ export default function AddCreditsPage() {
                                     <div className={`step-dot${done ? ' step-dot-done' : ''}`}>
                                         {passed ? '✓' : i + 1}
                                     </div>
-                                    {i < 3 && <div className={passed ? 'step-connector-done' : 'step-connector'} />}
+                                    {i < ORDER.length - 1 && <div className={passed ? 'step-connector-done' : 'step-connector'} />}
                                 </div>
                             );
                         })}
@@ -165,63 +155,41 @@ export default function AddCreditsPage() {
                         <button
                             className={`btn-payment btn-panel-full${canProceedAmount ? '' : ' btn-disabled'}`}
                             disabled={!canProceedAmount}
-                            onClick={() => setStep('method')}
+                            onClick={() => setStep('details')}
                         >
                             Continue →
                         </button>
                     </div>
                 )}
 
-                {/* ========== STEP 2: PAYMENT METHOD ========== */}
-                {step === 'method' && (
+                {/* ========== STEP 2: UPI DETAILS ========== */}
+                {step === 'details' && (
                     <div className="page-content-sm">
-                        <div>
-                            <div className="section-label-sm">CHOOSE PAYMENT METHOD</div>
-                            <div className="pay-tabs">
-                                {([
-                                    { id: 'upi', label: '📱 UPI' },
-                                    { id: 'card', label: '💳 Card' },
-                                    { id: 'netbanking', label: '🏦 Net Banking' },
-                                ] as { id: PayMethod; label: string }[]).map(m => (
-                                    <button
-                                        key={m.id}
-                                        className={`pay-tab${payMethod === m.id ? ' active' : ''}`}
-                                        onClick={() => setPayMethod(m.id)}
-                                    >
-                                        {m.label}
-                                    </button>
-                                ))}
+                        <div className="section-label-sm-mb8">📱 UPI PAYMENT</div>
+
+                        <div className="glass-card pay-method-preview">
+                            <div className="pay-method-info">
+                                <span className="pay-method-icon">📱</span>
+                                <div>
+                                    <div className="pay-method-name">UPI Payment</div>
+                                    <div className="pay-method-desc">Instant transfer · No charges</div>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="glass-card pay-method-preview">
-                            {payMethod === 'upi' && (
-                                <div className="pay-method-info">
-                                    <span className="pay-method-icon">📱</span>
-                                    <div>
-                                        <div className="pay-method-name">UPI Payment</div>
-                                        <div className="pay-method-desc">Instant transfer · No charges</div>
-                                    </div>
-                                </div>
-                            )}
-                            {payMethod === 'card' && (
-                                <div className="pay-method-info">
-                                    <span className="pay-method-icon">💳</span>
-                                    <div>
-                                        <div className="pay-method-name">Credit / Debit Card</div>
-                                        <div className="pay-method-desc">Visa · Mastercard · RuPay</div>
-                                    </div>
-                                </div>
-                            )}
-                            {payMethod === 'netbanking' && (
-                                <div className="pay-method-info">
-                                    <span className="pay-method-icon">🏦</span>
-                                    <div>
-                                        <div className="pay-method-name">Net Banking</div>
-                                        <div className="pay-method-desc">All major banks supported</div>
-                                    </div>
-                                </div>
-                            )}
+                        <div className="form-fields">
+                            <div>
+                                <label className="form-label">UPI ID</label>
+                                <input
+                                    className="pay-input"
+                                    placeholder="yourname@upi"
+                                    value={upiId}
+                                    onChange={e => setUpiId(e.target.value)}
+                                />
+                            </div>
+                            <div className="glass-card upi-hint">
+                                💡 Demo UPI ID: <strong>demo@upi</strong> &nbsp;|&nbsp; PIN: <strong>1234</strong>
+                            </div>
                         </div>
 
                         <div className="glass-card-gold-transfer">
@@ -231,123 +199,29 @@ export default function AddCreditsPage() {
                             </div>
                         </div>
 
-                        <button className="btn-payment btn-panel-full" onClick={() => setStep('details')}>
-                            Continue →
-                        </button>
-                    </div>
-                )}
-
-                {/* ========== STEP 3: ENTER DETAILS ========== */}
-                {step === 'details' && (
-                    <div className="page-content-sm">
-                        <div className="section-label-sm-mb8">
-                            {payMethod === 'upi' && '📱 UPI DETAILS'}
-                            {payMethod === 'card' && '💳 CARD DETAILS'}
-                            {payMethod === 'netbanking' && '🏦 NET BANKING'}
-                        </div>
-
-                        {/* UPI */}
-                        {payMethod === 'upi' && (
-                            <div className="form-fields">
-                                <div>
-                                    <label className="form-label">UPI ID</label>
-                                    <input
-                                        className="pay-input"
-                                        placeholder="yourname@upi"
-                                        value={upiId}
-                                        onChange={e => setUpiId(e.target.value)}
-                                    />
-                                </div>
-                                <div className="glass-card upi-hint">
-                                    💡 Example: 9876543210@paytm, john@ybl, user@okaxis
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Card */}
-                        {payMethod === 'card' && (
-                            <div className="form-fields">
-                                <div>
-                                    <label className="form-label">Card Number</label>
-                                    <input
-                                        className="pay-input"
-                                        placeholder="0000 0000 0000 0000"
-                                        value={cardNum}
-                                        onChange={e => setCardNum(formatCard(e.target.value))}
-                                    />
-                                </div>
-                                <div className="card-row">
-                                    <div>
-                                        <label className="form-label">Expiry (MM/YY)</label>
-                                        <input
-                                            className="pay-input"
-                                            placeholder="MM/YY"
-                                            value={cardExpiry}
-                                            onChange={e => setCardExpiry(formatExpiry(e.target.value))}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="form-label">CVV</label>
-                                        <input
-                                            className="pay-input"
-                                            placeholder="•••"
-                                            maxLength={3}
-                                            type="password"
-                                            value={cardCvv}
-                                            onChange={e => setCardCvv(e.target.value.replace(/\D/g, '').slice(0, 3))}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Net Banking */}
-                        {payMethod === 'netbanking' && (
-                            <div className="form-fields">
-                                <div>
-                                    <label className="form-label">Customer ID / Username</label>
-                                    <input
-                                        className="pay-input"
-                                        placeholder="Your bank username"
-                                        value={netUser}
-                                        onChange={e => setNetUser(e.target.value)}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="form-label">Password</label>
-                                    <input
-                                        className="pay-input"
-                                        type="password"
-                                        placeholder="Your net banking password"
-                                        value={netPass}
-                                        onChange={e => setNetPass(e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                        )}
-
                         <div className="demo-warning">
                             🔒 This is a DEMO simulator. No real transactions are processed.
                         </div>
 
                         <button
-                            className={`btn-payment btn-panel-full${canProceedDetails() ? '' : ' btn-disabled'}`}
-                            disabled={!canProceedDetails()}
-                            onClick={() => { setPin(''); setStep('pin'); }}
+                            className={`btn-payment btn-panel-full${canProceedDetails ? '' : ' btn-disabled'}`}
+                            disabled={!canProceedDetails}
+                            onClick={() => { setPin(''); setError(''); setStep('pin'); }}
                         >
                             Proceed to Pay ₹{finalAmount.toLocaleString()} →
                         </button>
                     </div>
                 )}
 
-                {/* ========== STEP 4: PIN ========== */}
+                {/* ========== STEP 3: UPI PIN ========== */}
                 {step === 'pin' && (
                     <div className="pin-section">
                         <div className="pin-header">
-                            <div className="section-label">ENTER UPI / PAYMENT PIN</div>
+                            <div className="section-label">ENTER UPI PIN</div>
                             <div className="pin-subtitle">
                                 Confirm payment of <span className="pin-amount-gold">₹{finalAmount.toLocaleString()}</span>
                             </div>
+                            <div className="pin-upiid-label">via <strong>{upiId}</strong></div>
                         </div>
 
                         <div className="pin-dots">
@@ -379,7 +253,7 @@ export default function AddCreditsPage() {
                     </div>
                 )}
 
-                {/* ========== STEP 5: SUCCESS ========== */}
+                {/* ========== STEP 4: SUCCESS ========== */}
                 {step === 'success' && (
                     <div className="payment-success">
                         <div className="payment-success-icon">✅</div>
@@ -396,10 +270,8 @@ export default function AddCreditsPage() {
                                 <span className="payment-receipt-value">₹{finalAmount.toLocaleString()}</span>
                             </div>
                             <div className="payment-receipt-row">
-                                <span className="payment-receipt-label">Method</span>
-                                <span className="payment-receipt-value">
-                                    {payMethod === 'upi' ? `UPI (${upiId})` : payMethod === 'card' ? `Card •••• ${cardNum.replace(/\s/g, '').slice(-4)}` : 'Net Banking'}
-                                </span>
+                                <span className="payment-receipt-label">UPI ID</span>
+                                <span className="payment-receipt-value">{upiId}</span>
                             </div>
                             <div className="payment-receipt-chips">
                                 <span className="payment-chips-label">Credits Added</span>

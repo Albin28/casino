@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 
 // ============================
 // SYMBOL DEFINITIONS
@@ -31,8 +31,8 @@ function pickRandom(): Symbol {
     return SYMBOL_POOL[Math.floor(Math.random() * SYMBOL_POOL.length)];
 }
 
-// Generate a strip of symbols for animation
-function generateStrip(result: Symbol, length = 20): Symbol[] {
+// Generate a strip of symbols for animation (result is the LAST element)
+function generateStrip(result: Symbol, length = 24): Symbol[] {
     const strip: Symbol[] = [];
     for (let i = 0; i < length - 1; i++) strip.push(pickRandom());
     strip.push(result);
@@ -55,7 +55,7 @@ export function evaluateSpin(symbols: [Symbol, Symbol, Symbol]): SpinResult {
     if (isJackpot) {
         return { symbols, win: true, multiplier: 100, label: '🎰 JACKPOT!', isJackpot: true };
     }
-    // Count matches of the first symbol
+    // Count occurrences of each symbol
     const counts: Record<string, number> = {};
     symbols.forEach(s => { counts[s.name] = (counts[s.name] || 0) + 1; });
     const maxCount = Math.max(...Object.values(counts));
@@ -64,9 +64,10 @@ export function evaluateSpin(symbols: [Symbol, Symbol, Symbol]): SpinResult {
 
     if (maxCount >= 2) {
         const multiplier = topSym.payouts[maxCount] || 0;
+        const plural = topSym.name.toUpperCase() + (maxCount === 3 ? 'S' : 'S');
         const label = maxCount === 3
-            ? `🎉 THREE ${topSym.name.toUpperCase()}S!`
-            : `✨ TWO ${topSym.name.toUpperCase()}S`;
+            ? `🎉 THREE ${plural}!`
+            : `✨ TWO ${plural}`;
         return { symbols, win: true, multiplier, label, isJackpot: false };
     }
     return { symbols, win: false, multiplier: 0, label: 'No match — try again!', isJackpot: false };
@@ -81,59 +82,69 @@ type ReelProps = {
     delay: number;
     isWinner: boolean;
     isJackpot: boolean;
+    onSettled: () => void;
 };
 
-function Reel({ spinning, result, delay, isWinner, isJackpot }: ReelProps) {
+function Reel({ spinning, result, delay, isWinner, isJackpot, onSettled }: ReelProps) {
     const [strip, setStrip] = useState<Symbol[]>([]);
     const [offset, setOffset] = useState(0);
     const [settled, setSettled] = useState(false);
     const rafRef = useRef<number | null>(null);
     const startTimeRef = useRef<number | null>(null);
-    const speedRef = useRef(0);
     const CELL_HEIGHT = 110;
 
     useEffect(() => {
-        if (spinning && result) {
-            const newStrip = generateStrip(result, 22);
-            setStrip(newStrip);
-            setOffset(0);
-            setSettled(false);
-            speedRef.current = 0;
+        if (!spinning || !result) return;
 
-            const timeoutId = setTimeout(() => {
-                startTimeRef.current = null;
-                const animate = (ts: number) => {
-                    if (startTimeRef.current === null) startTimeRef.current = ts;
-                    const elapsed = ts - startTimeRef.current;
-                    // Ramp speed up then hold
-                    speedRef.current = Math.min(elapsed / 80, 14);
-                    setOffset(prev => {
-                        const next = prev + speedRef.current;
-                        const maxOffset = (newStrip.length - 1) * CELL_HEIGHT;
-                        if (next >= maxOffset) {
-                            setSettled(true);
-                            return maxOffset;
-                        }
-                        return next;
-                    });
-                    rafRef.current = requestAnimationFrame(animate);
-                };
-                rafRef.current = requestAnimationFrame(animate);
-            }, delay);
+        const newStrip = generateStrip(result, 24);
+        setStrip(newStrip);
+        setOffset(0);
+        setSettled(false);
 
-            return () => {
-                clearTimeout(timeoutId);
-                if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        let animId: number;
+        const maxOffset = (newStrip.length - 1) * CELL_HEIGHT;
+
+        const timeoutId = setTimeout(() => {
+            startTimeRef.current = null;
+
+            const animate = (ts: number) => {
+                if (startTimeRef.current === null) startTimeRef.current = ts;
+                const elapsed = ts - startTimeRef.current;
+                const speed = Math.min(elapsed / 60, 16); // px per frame
+
+                setOffset(prev => {
+                    const next = prev + speed;
+                    if (next >= maxOffset) {
+                        // Snap to final position
+                        return maxOffset;
+                    }
+                    animId = requestAnimationFrame(animate);
+                    return next;
+                });
             };
+
+            animId = requestAnimationFrame(animate);
+            rafRef.current = animId;
+        }, delay);
+
+        return () => {
+            clearTimeout(timeoutId);
+            if (animId) cancelAnimationFrame(animId);
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [spinning, result, delay]);
+
+    // Fire onSettled when the reel reaches its final position
+    useEffect(() => {
+        if (!strip.length || !result) return;
+        const maxOffset = (strip.length - 1) * CELL_HEIGHT;
+        if (offset >= maxOffset && !settled && spinning) {
+            setSettled(true);
+            onSettled();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [spinning, result]);
-
-    useEffect(() => {
-        if (settled && rafRef.current) {
-            cancelAnimationFrame(rafRef.current);
-        }
-    }, [settled]);
+    }, [offset]);
 
     const displayStrip = strip.length > 0 ? strip : [pickRandom(), pickRandom(), pickRandom()];
     const windowClass = [
@@ -145,7 +156,7 @@ function Reel({ spinning, result, delay, isWinner, isJackpot }: ReelProps) {
         <div className={windowClass}>
             <div
                 className="reel-strip"
-                style={{ transform: `translateY(-${offset}px)` }}
+                style={{ ['--reel-offset' as string]: `${offset}px` } as React.CSSProperties}
             >
                 {displayStrip.map((sym, i) => (
                     <div key={i} className="reel-cell">{sym.emoji}</div>
@@ -169,24 +180,34 @@ export default function SlotMachine({ bet, onSpin, onResult, disabled }: SlotMac
     const [spinning, setSpinning] = useState(false);
     const [results, setResults] = useState<[Symbol, Symbol, Symbol] | null>(null);
     const [evalResult, setEvalResult] = useState<SpinResult | null>(null);
+    const settledCountRef = useRef(0);
+    const pendingResultsRef = useRef<[Symbol, Symbol, Symbol] | null>(null);
 
     const handleSpin = () => {
         if (spinning || disabled) return;
         onSpin(); // deduct bet in parent
         const r1 = pickRandom(), r2 = pickRandom(), r3 = pickRandom();
         const newResults: [Symbol, Symbol, Symbol] = [r1, r2, r3];
+        pendingResultsRef.current = newResults;
+        settledCountRef.current = 0;
         setEvalResult(null);
         setSpinning(true);
         setResults(newResults);
-
-        // Evaluate after all reels settle (~2.2s for last reel)
-        setTimeout(() => {
-            setSpinning(false);
-            const ev = evaluateSpin(newResults);
-            setEvalResult(ev);
-            onResult(ev);
-        }, 2400);
     };
+
+    const handleReelSettled = useCallback(() => {
+        settledCountRef.current += 1;
+        if (settledCountRef.current >= 3) {
+            // All 3 reels have physically settled — now evaluate
+            const resolvedResults = pendingResultsRef.current;
+            if (resolvedResults) {
+                const ev = evaluateSpin(resolvedResults);
+                setSpinning(false);
+                setEvalResult(ev);
+                onResult(ev);
+            }
+        }
+    }, [onResult]);
 
     const winnerIndexes: number[] = [];
     if (evalResult?.win && !evalResult.isJackpot && results) {
@@ -212,9 +233,10 @@ export default function SlotMachine({ bet, onSpin, onResult, disabled }: SlotMac
                         key={i}
                         spinning={spinning}
                         result={results?.[i] ?? null}
-                        delay={i * 250}
+                        delay={i * 300}
                         isWinner={!evalResult?.isJackpot && winnerIndexes.includes(i)}
                         isJackpot={!!evalResult?.isJackpot}
+                        onSettled={handleReelSettled}
                     />
                 ))}
             </div>

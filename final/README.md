@@ -60,11 +60,25 @@ Open [http://localhost:3000](http://localhost:3000) and try not to lose all your
 
 ## 🎮 How to Play
 
-1. 💵 You start with **$1,000** in fake chips
+1. 💵 You start with **1,000** fake chips
 2. 🎯 Set your bet amount using the controls
 3. 🎰 Hit **SPIN** and watch the reels go
 4. 🍒 Match symbols to win — three **7️⃣**s = JACKPOT
-5. 📉 Go broke? Refresh and pretend it never happened
+5. 💳 Need more chips? Hit **Add Credits** and use UPI
+6. 📉 Go broke? Refresh and pretend it never happened
+
+---
+
+## 🔑 Demo Credentials
+
+> These are used in the mock UPI payment gateway when adding credits.
+
+| Field | Value |
+|---|---|
+| **UPI ID** | `demo@upi` |
+| **UPI PIN** | `1234` |
+
+> Any UPI ID containing `@` with at least 5 characters is accepted (e.g. `yourname@upi`). The PIN is always `1234`.
 
 ---
 
