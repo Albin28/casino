@@ -146,6 +146,15 @@ function Reel({ spinning, result, delay, isWinner, isJackpot, onSettled }: ReelP
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [offset]);
 
+    const stripRef = useRef<HTMLDivElement>(null);
+
+    // Update CSS variable via ref to avoid inline style warnings
+    useEffect(() => {
+        if (stripRef.current) {
+            stripRef.current.style.setProperty('--reel-offset', `${offset}px`);
+        }
+    }, [offset]);
+
     const displayStrip = strip.length > 0 ? strip : [pickRandom(), pickRandom(), pickRandom()];
     const windowClass = [
         'reel-window',
@@ -154,10 +163,7 @@ function Reel({ spinning, result, delay, isWinner, isJackpot, onSettled }: ReelP
 
     return (
         <div className={windowClass}>
-            <div
-                className="reel-strip"
-                style={{ ['--reel-offset' as string]: `${offset}px` } as React.CSSProperties}
-            >
+            <div className="reel-strip" ref={stripRef}>
                 {displayStrip.map((sym, i) => (
                     <div key={i} className="reel-cell">{sym.emoji}</div>
                 ))}
